@@ -7,7 +7,12 @@ using namespace std;
 class JobProcessor
 {
 public:
-	JobProcessor(list<Job>   jobsToWrite);
+	JobProcessor();
 	~JobProcessor();
+	void setData(list<Job>   jobsToWrite);
 	void execute();
+	int jobSize;
+private :
+	
+	
 };

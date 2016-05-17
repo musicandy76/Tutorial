@@ -152,7 +152,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="FIFOQueue.cpp" />
-    <ClCompile Include="MUSIC Group.cpp" />
+    <ClCompile Include="MUSICGroup.cpp" />
     <ClCompile Include="JobProcessor.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>

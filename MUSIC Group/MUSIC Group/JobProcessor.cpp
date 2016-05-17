@@ -5,7 +5,6 @@
 
 #include "FIFOQueue.cpp"
 
-#include <condition_variable>
 
 #include <thread>
 #include <mutex>
@@ -19,13 +18,6 @@ FIFOQueue<Job> jobs;
 
 list<Job>  jobsToProcess;
 
-std::mutex m;
-std::condition_variable waitForData;
-bool readyToRead = true;
-bool readerThreadStop = false;
-
-bool threadEnded = false;
-
 
 void WriterThread() {
 
@@ -34,63 +26,77 @@ void WriterThread() {
 
 	for (it = jobsToProcess.begin(); it != jobsToProcess.end(); ++it)
 	{
-		std::unique_lock<std::mutex> lck(m);
-		if (jobs.push(*it))
-		{
-			readyToRead = true;
-			waitForData.notify_all();
-		}
+		jobs.push(*it);
 	}
 }
 
 
-void ReaderThread() {
+void ReaderThread(int jobSize) {
 
 	Job whichJob;
-
+	bool readSuccess = false;
+	int iter = 0;
 	do {
+		
 
-		readyToRead = jobs.pop(whichJob);
+		readSuccess = jobs.pop(whichJob);
+		iter++;
 
-		if (readyToRead)
-			cout << "Mixing desk event name:" << whichJob.mixingDeskEventName << "\n" << "Mixing desk MIDI event value" << whichJob.midiValue << "\n";
+		if (readSuccess)
+		{
+			cout << "Mixing desk event name:" << whichJob.mixingDeskEventName << "\n" << "Mixing desk MIDI event value " << whichJob.midiValue << "\n";
 
-		std::unique_lock<std::mutex> lk(m);
-
-		while (!readyToRead) {
-			std::cout << "No jobs on queue";
-			waitForData.wait(lk);
+			// This is for emulating that the reader is processing the job and taking a second to do so.....
+			// In a more realistic scenario it would process this job to do something....
+			cout << "Processing job.......\n";
+			this_thread::sleep_for(0.5s);
 		}
-	} while (jobs.pop_try(whichJob));
+
+		if (iter == jobSize)
+		{
+			cout << "\nJob Completed ....Number of jobs in cycle: " << jobSize << "\n";
+			jobs.stop();
+			readSuccess = false;
+		}
+
+	} while (readSuccess);
+
+
+	// Check the reader queue is empty, if not there is a problem as the job should have been finished. 
+	jobs.pop_try(whichJob);
+
+	if (&whichJob == NULL)
+	{
+		cout << "Not all jobs were processed by the reader";
+	}
 
 }
 
 
 
-JobProcessor::JobProcessor(list<Job>   jobsToWrite)
+JobProcessor::JobProcessor()
 {
-	jobsToProcess = jobsToWrite;
 	
 }
 
 
 JobProcessor::~JobProcessor()
 {
-	waitForData.notify_all();
-	threadEnded = true;
-
 
 }
 
+void JobProcessor::setData(list<Job>   jobsToWrite)
+{
+	jobsToProcess = jobsToWrite;
+	jobSize = jobsToWrite.size();
+}
 void JobProcessor::execute()
 {
 	thread Writer(WriterThread);
-	thread Reader(ReaderThread);
-
+	thread Reader(ReaderThread, jobSize);
 
 	Writer.join();
 	Reader.join();
-	
 
 	return;
 }

@@ -1,62 +1,66 @@
 
 #pragma once
+
 #include "stdafx.h"
-#include <queue>
-#include <mutex>
-
-
+#include "FIFOQueue.h"
 
 using namespace std;
 
-
-template <class t_Job> class FIFOQueue {
-
-private:
-	queue<t_Job> queue;
-
-	std::mutex g_lock;
-
-
-public:
-
-	bool pop(t_Job & tJob);
-	bool pop_try(t_Job  & tJob);
-	bool push(t_Job const& elem);
-};
-
-
-
+static bool valueHasBeenPushed;
 
 template<class t_Job>
 bool FIFOQueue<t_Job>::pop(t_Job & tJob)
 {
 	bool bRet = false;
-	if (!queue.empty())
-	{
-		g_lock.lock();
+	valueHasBeenPushed = false;
+	g_lock.lock();
 
-		tJob = queue.front();
-		queue.pop();
-		g_lock.unlock();
+	if (!fifoQueue.empty())
+	{
 		
+		tJob = fifoQueue.front();
+	
+		fifoQueue.pop();
+
 		bRet = true;
 	}
+	else
+	{
+		unique_lock<mutex> lk(m);
+		waitForData.wait(lk, [] {return valueHasBeenPushed  == true; });
+	}
+
+	g_lock.unlock();
 
 	return bRet;
 }
 
 template<class t_Job>
+void FIFOQueue<t_Job>::stop()
+{
+	unique_lock<mutex> lk(m);
+	waitForData.notify_all();
+}
+
+template<class t_Job>
 bool FIFOQueue<t_Job>::pop_try(t_Job & tJob)
 {
-	if (queue.empty())
+	bool bRet = false;
+	g_lock.lock();
+
+	if (fifoQueue.empty())
 	{
-		return false;
+		bRet = false;
 	}
 	else
 	{
 		pop(tJob);
-		return true;
+		bRet = true;
 	}
+
+	g_lock.unlock();
+
+	return bRet;
 }
 
 template <class t_Job>
@@ -67,11 +71,19 @@ bool FIFOQueue<t_Job>::push(t_Job const& elem)
 	{
 		g_lock.lock();
 
-		queue.push(elem);
+		fifoQueue.push(elem);
+
+
+		// TODO: Maybe rename thi
+		unique_lock<mutex> lk(m);
+
+		valueHasBeenPushed = true;
+		waitForData.notify_all();
+
 
 		g_lock.unlock();
 	}
-	catch(const std::exception&)
+	catch(const exception&)
 	{
 		bRet = false;
 	}
